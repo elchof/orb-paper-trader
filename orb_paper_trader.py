@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 
 import pandas as pd
@@ -11,7 +11,7 @@ from orb import evaluar_hoy, PUNTO_USD, COSTE_LADO_USD
 # ==============================================================================
 CONFIG = {
     "ticker": "NQ=F",
-    "initial_capital": 10000.0,   # Saldo inicial paper (USD)
+    "initial_capital": 100.0,   # Saldo inicial paper (USD)
     "slippage_puntos": 0.25,      # 1 tick por lado, igual que el backtest
     "dias_a_revisar": 5,          # Si falla alguna ejecucion, recupera los ultimos dias
     "state_file": "orb_state.json",
