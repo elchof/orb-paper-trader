@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 
 import pandas as pd
@@ -11,7 +11,8 @@ from orb import evaluar_hoy, PUNTO_USD, COSTE_LADO_USD
 # ==============================================================================
 CONFIG = {
     "ticker": "NQ=F",
-    "initial_capital": 100.0,   # Saldo inicial paper (USD)
+    "initial_capital": 100.0,     # Saldo inicial paper (USD)
+    "risk_per_trade_pct": 0.01,   # 1% del saldo en riesgo por operacion (como el paper trader FVG)
     "slippage_puntos": 0.25,      # 1 tick por lado, igual que el backtest
     "dias_a_revisar": 5,          # Si falla alguna ejecucion, recupera los ultimos dias
     "state_file": "orb_state.json",
@@ -97,11 +98,13 @@ def run_cycle(cfg):
 
         if estado == "CERRADA":
             lado, px, R = int(r["lado"]), float(r["entrada"]), float(r["R"])
+            riesgo = state["open"].get(clave, {}).get("riesgo_usd") or round(state["balance"] * cfg["risk_per_trade_pct"], 2)
+            contratos = riesgo / (R * PUNTO_USD)   # contratos MNQ (fraccionados) para arriesgar justo 'riesgo' en el stop
             slip = cfg["slippage_puntos"]
             entrada_ef = px + lado * slip
             salida_ef = float(r["salida"]) - lado * slip
             pnl_pts = lado * (salida_ef - entrada_ef)
-            neto = round(pnl_pts * PUNTO_USD - 2 * COSTE_LADO_USD, 2)
+            neto = round(contratos * (pnl_pts * PUNTO_USD - 2 * COSTE_LADO_USD), 2)
             state["balance"] = round(state["balance"] + neto, 2)
             append_closed_trade_csv({
                 "fecha": clave,
@@ -114,6 +117,8 @@ def run_cycle(cfg):
                 "motivo": r["motivo"],
                 "R_puntos": R,
                 "r_multiple": round(pnl_pts / R, 3),
+                "riesgo_usd": riesgo,
+                "contratos": round(contratos, 5),
                 "neto_usd": neto,
                 "balance_after": state["balance"],
             }, cfg)
@@ -126,6 +131,7 @@ def run_cycle(cfg):
 
         elif estado in ("ENTRADA_AHORA", "ABIERTA"):
             lado = int(r["lado"])
+            riesgo = state["open"].get(clave, {}).get("riesgo_usd") or round(state["balance"] * cfg["risk_per_trade_pct"], 2)
             state["open"][clave] = {
                 "lado": "LARGO" if lado == 1 else "CORTO",
                 "hora_entrada": str(r["hora_entrada"]),
@@ -133,6 +139,7 @@ def run_cycle(cfg):
                 "stop": float(r["stop"]),
                 "objetivo": float(r["objetivo"]),
                 "R_puntos": float(r["R"]),
+                "riesgo_usd": riesgo,
             }
             print(f"  [ABIERTA] {clave} {state['open'][clave]['lado']} | Entrada {r['entrada']:.2f} "
                   f"| Stop {r['stop']:.2f} | Objetivo {r['objetivo']:.2f}")
